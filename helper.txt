@@ -1,0 +1,77 @@
+// Define the list of filenames
+val fileNames = Array("Badges.csv", "Comments.csv", "LinkTypes.csv", "PostLinks.csv", "PostTypes.csv", "Posts.csv", "Users.csv", "VoteTypes.csv", "Votes.csv")
+
+// Base paths
+val csvBasePath = "/dbfs/fall_2023_users/piotreks/csv/"
+val parquetBasePath = "/dbfs/fall_2023_users/piotreks/parquet/"
+
+// Iterate over the file names and convert each file
+fileNames.foreach { fileName =>
+  val csvFilePath = csvBasePath + fileName
+  val parquetFilePath = parquetBasePath + fileName.replace(".csv", ".parquet")
+
+  // Read the CSV file
+  val df = spark.read.option("header", "true").csv(csvFilePath)
+
+  // Write the DataFrame to Parquet format
+  df.write.mode("overwrite").parquet(parquetFilePath)
+}
+
+
+
+
+Install Databricks CLI: First, ensure that you have the Databricks Command Line Interface (CLI) installed on your system. This tool allows you to interact with Databricks from your local machine. You can install it using pip:
+
+bash
+Copy code
+pip install databricks-cli
+Configure Databricks CLI: Next, configure the CLI with your Databricks workspace. You will need the URL of your Databricks workspace and a personal access token. You can set these up using the databricks configure command:
+
+bash
+
+https://adb-6199578147525915.15.azuredatabricks.net/
+dapi142d01b44aea6d22446af6bd00bcfd7f
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Copy code
+databricks configure --token
+When prompted, enter your Databricks host URL and the personal access token.
+
+Upload Files to DBFS: Once the CLI is configured, you can use it to copy files from your local directory to the Databricks File System (DBFS). You can do this with the databricks fs cp command. To copy all .csv files from D:\csv\ to dbfs:/fall_2023_users/piotreks/, use a command like:
+
+bash
+Copy code
+for %i in (D:\csv\*.csv) do databricks fs cp "%i" dbfs:/fall_2023_users/piotreks/
+Note: This command is for Windows Command Prompt. If you're using a different shell (like PowerShell or Bash), the syntax might differ slightly.
+
+Verify the Copy: After running the command, you can verify that the files were copied correctly by listing the files in the DBFS directory:
+
+bash
+Copy code
+databricks fs ls dbfs:/fall_2023_users/piotreks/
+This method assumes you have access to the Databricks workspace and the necessary permissions to upload files to the specified directory. If you encounter any issues, it's a good idea to check the documentation specific to your version of Databricks or consult with your Databricks administrator.
+
+
+
+
+
+
