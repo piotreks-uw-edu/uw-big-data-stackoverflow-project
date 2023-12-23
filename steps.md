@@ -1,29 +1,14 @@
-@echo off
-setlocal enabledelayedexpansion
+1. Download the StackOverflow2010 database from brentozar.com
 
-set BCP_EXPORT_SERVER=localhost
-set BCP_EXPORT_DB=StackOverflow2010
+2. Attach the database to SQL Server
 
-rem Define a list of user tables
-rem set "TABLES=Badges Comments LinkTypes PostLinks PostTypes Posts Users VoteTypes Votes"
-set "TABLES=LinkTypes PostTypes"
+3. Clear data, especially sanitize the html code in the fileds
 
-rem Iterate through each table in the list
-for %%T in (%TABLES%) do (
-    set BCP_EXPORT_TABLE=%%T
+4. Convert the tables to *.csv files
 
-    BCP "DECLARE @colnames VARCHAR(max);SELECT @colnames = COALESCE(@colnames + ',', '') + column_name from %BCP_EXPORT_DB%.INFORMATION_SCHEMA.COLUMNS where TABLE_NAME='!BCP_EXPORT_TABLE!'; select @colnames;" queryout D:\csv\HeadersOnly.csv -c -T -S%BCP_EXPORT_SERVER%
+5. 
 
-    BCP %BCP_EXPORT_DB%.dbo.!BCP_EXPORT_TABLE! out D:\csv\TableDataWithoutHeaders.csv -c -t, -T -S%BCP_EXPORT_SERVER%
 
-    copy /b D:\csv\HeadersOnly.csv+D:\csv\TableDataWithoutHeaders.csv D:\csv\!BCP_EXPORT_TABLE!.csv
-
-    del D:\csv\HeadersOnly.csv
-    del D:\csv\TableDataWithoutHeaders.csv
-)
-
-endlocal
-pause
 
 
 ### run docker
