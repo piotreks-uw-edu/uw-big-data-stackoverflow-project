@@ -1,0 +1,5 @@
+FROM davisengeler/docker-scala:latest
+
+RUN mkdir /data
+
+WORKDIR /data

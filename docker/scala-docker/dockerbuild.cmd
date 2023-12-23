@@ -1,0 +1,1 @@
+docker build -t scala .\docker-build -f .\docker-build\dockerfile

@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 set BCP_EXPORT_SERVER=localhost
 set BCP_EXPORT_DB=StackOverflow2010
-set "CSV_SEPARATOR=||"
+set "CSV_SEPARATOR=|"
 
 rem Define a list of user tables
 @REM set "TABLES=vBadges vComments vLinkTypes vPostLinks vPostTypes vPosts vUsers vVoteTypes vVotes"
