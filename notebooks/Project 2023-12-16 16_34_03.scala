@@ -56,7 +56,7 @@ var df = readCSV(getCSVPath(entity), schema)
 
 df.write.mode("overwrite").parquet(getParquetPath(entity))
 
-df.show(5)
+df.show(10)
 
 // COMMAND ----------
 
@@ -216,52 +216,88 @@ df.write.mode("overwrite").parquet(getParquetPath(entity))
 // DBTITLE 1,Load All Parquet Files to A Corresponding Dataframe
 // Load the DataFrames
 val badgesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Badges.parquet")
-df.show(5)
+println("badgesDF:")
+badgesDF.show(10)
+
 val commentsDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Comments.parquet")
-df.show(5)
+println("commentsDF:")
+commentsDF.show(10)
+
 val postsDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Posts.parquet")
-df.show(5)
+println("postsDF:")
+postsDF.show(10)
+
 val linkTypesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/LinkTypes.parquet")
-df.show(5)
+println("linkTypesDF:")
+linkTypesDF.show(10)
+
 val postTypesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/PostTypes.parquet")
-df.show(5)
+println("PostTypes dataframe:")
+postTypesDF.show(10)
+
 val postLinksDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/PostLinks.parquet")
-df.show(5)
+println("postTypesDF:")
+postLinksDF.show(10)
+
 val usersDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Users.parquet")
-df.show(5)
+println("usersDF:")
+usersDF.show(10)
+
 val votesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Votes.parquet")
-df.show(5)
+println("votesDF:")
+votesDF.show(10)
+
 val voteTypesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/VoteTypes.parquet")
-df.show(5)
+println("voteTypesDF:")
+voteTypesDF.show(10)
 
 
 
 
 // COMMAND ----------
 
-// DBTITLE 1,Top 5 users based on the number of posts they initiated or answered.
-// Who are the top 5 users based on the number of posts they have authored? Consider both questions and answers in the Posts table.
+// DBTITLE 1,1. Top 5 Active Users by Post Count and Their Most Engaged Tag
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.expressions.Window
 
-// Filter Posts for questions and answers and count posts by user
+// Filter Posts for questions and answers
+val filteredPostsDF = postsDF
+  .filter("PostTypeId = 1 OR PostTypeId = 2") // PostTypeId 1 for questions, 2 for answers
 
-val postsCountDF = postsDF
-  .filter("PostTypeId = 4 OR PostTypeId = 2") // PostTypeId 1 for questions, 2 for answers
-  .groupBy("OwnerUserId")
+// Explode the Tags column to separate rows for each tag
+val explodedPostsDF = filteredPostsDF
+  .withColumn("Tag", explode(split(regexp_replace(col("Tags"), "[<>]", ","), ",")))
+  .filter("Tag != ''")
+
+// Count posts by user and tag
+val userTagCountDF = explodedPostsDF
+  .groupBy("OwnerUserId", "Tag")
   .agg(count("Id").alias("PostCount"))
 
-// Join with the Users DataFrame to get user details
-val topUsersDF = postsCountDF
-  .join(usersDF, postsCountDF("OwnerUserId") === usersDF("Id"))
-  .select("OwnerUserId", "DisplayName", "PostCount")
+// Find the most active tag for each user
+val windowSpec = Window.partitionBy("OwnerUserId").orderBy(desc("PostCount"))
+val mostActiveTagDF = userTagCountDF
+  .withColumn("rank", rank().over(windowSpec))
+  .filter("rank = 1")
+  .drop("rank")
 
-// Get the top 5 users by post count
+// Aggregate total post count by user
+val totalPostsDF = filteredPostsDF
+  .groupBy("OwnerUserId")
+  .agg(count("Id").alias("TotalPosts"))
+
+// Join with the Users DataFrame to get user details and most active tag
+val topUsersDF = totalPostsDF
+  .join(usersDF, totalPostsDF("OwnerUserId") === usersDF("Id"))
+  .join(mostActiveTagDF, "OwnerUserId")
+  .select("DisplayName", "TotalPosts", "Tag")
+
+// Get the top 5 users by total post count
 val top5UsersDF = topUsersDF
-  .orderBy(desc("PostCount"))
+  .orderBy(desc("TotalPosts"))
   .limit(5)
 
 top5UsersDF.show()
-
 
 // COMMAND ----------
 
