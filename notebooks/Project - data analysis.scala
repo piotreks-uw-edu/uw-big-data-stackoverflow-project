@@ -165,17 +165,50 @@ scalaPostsByYearDF.createOrReplaceTempView("scalaPostsByYearView")
 
 // COMMAND ----------
 
-//For each user, what is the average score of their comments?
+// DBTITLE 1,3. Who is the Scala Guru? - Identifying the User with the Max Score in Scala Posts and Comments
+import org.apache.spark.sql.functions._
+import spark.implicits._
 
-// Group by UserId and calculate the average score of their comments
-val averageScoreDF = commentsDF
-  .groupBy("UserId")
-  .agg(avg("Score").alias("AverageCommentScore"))
-  .join(usersDF, commentsDF("UserId") === usersDF("Id")) // Specify the join condition explicitly
-  .select("UserId", "DisplayName", "AverageCommentScore")
+// Filter Scala posts
+val scalaPostsDF = postsDF.filter($"Tags".contains("<scala>"))
 
-// Display the result
-averageScoreDF.show(truncate = false)
+// Prepare comments related to Scala posts
+val scalaCommentsDF = commentsDF
+  .join(scalaPostsDF, commentsDF("PostId") === scalaPostsDF("Id"))
+  .select(commentsDF("UserId").alias("CommentUserId"), commentsDF("Score").alias("CommentScore"))
+
+// Aggregate scores by user from posts
+val postScores = scalaPostsDF
+  .groupBy("OwnerUserId")
+  .agg(sum("Score").alias("PostScore"))
+
+// Aggregate scores by user from comments
+val commentScores = scalaCommentsDF
+  .groupBy("CommentUserId")
+  .agg(sum("CommentScore").alias("CommentScore"))
+
+// Combine scores from posts and comments
+val combinedScores = postScores
+  .join(commentScores, postScores("OwnerUserId") === commentScores("CommentUserId"), "outer")
+  .na.fill(0) // Replace null values with 0
+  .withColumn("TotalScore", $"PostScore" + $"CommentScore")
+  .select($"OwnerUserId", $"TotalScore")
+
+// Find the top user
+val scalaGuruDF = combinedScores
+  .join(usersDF, $"OwnerUserId" === usersDF("Id"))
+  .orderBy(desc("TotalScore"))
+  .limit(1)
+  .select("DisplayName", "Location", "TotalScore")
+
+scalaGuruDF.collect().foreach { row =>
+  val name = row.getAs[String]("DisplayName")
+  val location = row.getAs[String]("Location")
+  val score = row.getAs[Long]("TotalScore")
+  println(s"The Scala guru was $name from $location with a total score of $score.")
+}
+
+
 
 // COMMAND ----------
 
