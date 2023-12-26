@@ -2,43 +2,22 @@
 // DBTITLE 1,Load All Parquet Files to A Corresponding Dataframe
 // Load the DataFrames
 val badgesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Badges.parquet")
-println("badgesDF:")
-badgesDF.show(10)
 
 val commentsDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Comments.parquet")
-println("commentsDF:")
-commentsDF.show(10)
 
 val postsDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Posts.parquet")
-println("postsDF:")
-postsDF.show(10)
 
 val linkTypesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/LinkTypes.parquet")
-println("linkTypesDF:")
-linkTypesDF.show(10)
 
 val postTypesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/PostTypes.parquet")
-println("PostTypes dataframe:")
-postTypesDF.show(10)
 
 val postLinksDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/PostLinks.parquet")
-println("postTypesDF:")
-postLinksDF.show(10)
 
 val usersDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Users.parquet")
-println("usersDF:")
-usersDF.show(10)
 
 val votesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/Votes.parquet")
-println("votesDF:")
-votesDF.show(10)
 
 val voteTypesDF = spark.read.parquet("dbfs:/fall_2023_users/piotreks/parquet/VoteTypes.parquet")
-println("voteTypesDF:")
-voteTypesDF.show(10)
-
-
-
 
 // COMMAND ----------
 
@@ -106,7 +85,7 @@ top5UsersDF.createOrReplaceTempView("top5UsersView")
 // MAGIC labels = result_pd['Label'].tolist()
 // MAGIC post_counts = result_pd['TotalPosts'].tolist()
 // MAGIC
-// MAGIC # Create a pie chart
+// MAGIC # pie chart
 // MAGIC plt.figure(figsize=(8, 8))
 // MAGIC plt.pie(post_counts, labels=labels, autopct='%1.1f%%', startangle=140)
 // MAGIC plt.title('Top 5 Active Users by Post Count and Tag')
@@ -121,7 +100,6 @@ top5UsersDF.createOrReplaceTempView("top5UsersView")
 import org.apache.spark.sql.functions._
 import spark.implicits._
 
-// Assuming postsDF is your DataFrame containing the posts data
 // Filter posts with 'scala' tag
 val scalaPostsDF = postsDF.filter($"Tags".contains("<scala>"))
 
@@ -132,7 +110,6 @@ val scalaPostsByYearDF = scalaPostsDF
   .agg(count("Id").alias("NumberOfPosts")) // Count posts per year
   .orderBy("Year") // Order by year for readability
 
-// Show the result
 scalaPostsByYearDF.show()
 
 scalaPostsByYearDF.createOrReplaceTempView("scalaPostsByYearView")
@@ -144,7 +121,6 @@ scalaPostsByYearDF.createOrReplaceTempView("scalaPostsByYearView")
 // MAGIC import matplotlib.pyplot as plt
 // MAGIC import pandas as pd
 // MAGIC
-// MAGIC # Retrieve the DataFrame from the temporary view
 // MAGIC scalaPostsByYear_pd = spark.table("scalaPostsByYearView").toPandas()
 // MAGIC
 // MAGIC # Sort DataFrame by Year for better visualization
@@ -212,155 +188,50 @@ scalaGuruDF.collect().foreach { row =>
 
 // COMMAND ----------
 
-//Which users have answered the most questions tagged with 'c#' or '.net'?
-
-// Filter for answers related to 'c#' or '.net'
-val filteredAnswersDF = postsDF
-  //.filter("PostTypeId = 2") // PostTypeId 2 for answers
-  .filter("Tags LIKE '%<c#>%' OR Tags LIKE '%<.net>%'")
-
-// Group by OwnerUserId and count the number of answers
-val topAnswerersDF = filteredAnswersDF
-  .groupBy("OwnerUserId")
-  .agg(count("Id").alias("AnswerCount"))
-  .orderBy(desc("AnswerCount"))
-
-// Display the result
-topAnswerersDF.show(truncate = false)
-
-// COMMAND ----------
-
-//What are the top 3 posts with the highest view count that also have more than 10 comments?
-
-// Join Posts and Comments on PostId
-val joinedDF = postsDF.join(commentsDF, postsDF("Id") === commentsDF("PostId"), "inner")
-
-// Group by PostId and count comments
-val postCommentCountDF = joinedDF.groupBy(postsDF("Id"), postsDF("ViewCount"))
-  .agg(count("CommentCount").alias("CommentCount"))
-  .filter("CommentCount > 10")
-
-// Order by ViewCount in descending order and limit to the top 3 posts
-val topPostsDF = postCommentCountDF.orderBy(desc("ViewCount")).limit(3)
-
-// Display the result
-topPostsDF.show(truncate = false)
-
-// COMMAND ----------
-
-//How many questions adked for scala?
-
-// Filter for answers related to 'scala'
-val filteredAnswersDF = postsDF
-  .filter("Title LIKE '%scala%'")
-
-// Group by OwnerUserId and count the number of answers
-val topAnswerersDF = filteredAnswersDF
-  .groupBy("OwnerUserId")
-  .agg(count("Id").alias("AnswerCount"))
-  .orderBy(desc("AnswerCount"))
-
-// Display the result
-topAnswerersDF.show(truncate = false)
-
-// COMMAND ----------
-
-//On average, how long does it take for a question to receive its first comment?
-
-// Filter for questions and their first comments
-val questionsWithFirstCommentDF = postsDF
-  .filter("PostTypeId = 1") // PostTypeId 1 for questions
-  .join(
-    commentsDF
-      .filter("PostId IS NOT NULL")
-      .groupBy("PostId")
-      .agg(min("CreationDate").alias("FirstCommentDate")),
-    postsDF("Id") === commentsDF("PostId"), // Corrected join condition
-    "left_outer"
-  )
-
-// Calculate the time difference between question creation and first comment
-val timeDiffDF = questionsWithFirstCommentDF
-  .select(
-    col("Id"),
-    col("CreationDate").alias("QuestionCreationDate"),
-    col("FirstCommentDate"),
-    datediff(col("FirstCommentDate"), col("CreationDate")).alias("DaysToFirstComment")
-  )
-
-// Display the average time to receive the first comment
-val avgTimeToFirstComment = timeDiffDF.agg(avg("DaysToFirstComment").alias("AvgDaysToFirstComment"))
-avgTimeToFirstComment.show(truncate = false)
-
-// COMMAND ----------
-
-//What are the 5 posts with the highest number of linked posts?
-
-// Filter for posts with 'Linked' link type
-val linkedPostsDF = postLinksDF
-  .filter("LinkTypeId = 1") // LinkTypeId 1 for 'Linked'
-
-// Count the number of linked posts for each post
-val linkedPostCountsDF = linkedPostsDF
-  .groupBy("PostId")
-  .agg(count("RelatedPostId").alias("LinkedPostCount"))
-
-// Find the top 5 posts with the highest number of linked posts
-val topLinkedPostsDF = linkedPostCountsDF
-  .orderBy(desc("LinkedPostCount"))
-  .limit(5)
-
-// Display the results
-topLinkedPostsDF.show(truncate = false)
-
-// COMMAND ----------
-
-//Which users have the highest and lowest average comment scores?
-
+// DBTITLE 1,4. Identifying Potential Polish Users
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.expressions.Window
+import spark.implicits._
 
-// Assuming you have commentsDF DataFrame loaded
+// Define regular expression patterns
+val polishCharPattern = ".*[ąężźćńłó].*"
+val pytaniePattern = ".*pytanie.*"
+val plDomainPattern = ".*\\.pl"
+val namePattern = ".*((ski)|(czyk))$"  // Names ending with 'ski' or 'czyk'
+val locationPattern = ".*(Poland|Warsaw|Cracow|Poznan|Wroclaw).*"
 
-// Group by UserId and calculate the average score of their comments
-val averageScoreDF = commentsDF
-  .groupBy("UserId")
-  .agg(avg("Score").alias("AverageCommentScore"))
+// Filters on usersDF
+val polishUsersDF = usersDF.filter(
+    $"DisplayName".rlike(polishCharPattern) || 
+    $"WebsiteUrl".rlike(plDomainPattern) ||
+    $"DisplayName".rlike(namePattern) ||
+    $"AboutMe".rlike(pytaniePattern) ||
+    $"Location".rlike(locationPattern)
+)
 
-// Define a window specification to rank users based on average comment score
-val windowSpec = Window.orderBy(desc("AverageCommentScore"))
+// Filters on postsDF
+val polishPostsDF = postsDF
+  .filter($"Body".rlike(polishCharPattern) || $"Body".rlike(pytaniePattern))
+  .select($"OwnerUserId".alias("UserId")).distinct()
 
-// Add a rank column to the DataFrame based on the average comment score
-val rankedUsersDF = averageScoreDF
-  .withColumn("Rank", rank().over(windowSpec))
+// Filters on commentsDF
+val polishCommentsDF = commentsDF
+  .filter($"Text".rlike(polishCharPattern) || $"Text".rlike(pytaniePattern))
+  .select($"UserId").distinct()
 
-// Display users with the highest and lowest average comment scores
-val highestAverageScoreUsers = rankedUsersDF
-  .filter("Rank = 1")
-  .select("UserId", "AverageCommentScore")
-  .show(truncate = false)
+// Combine the results from posts and comments
+val combinedUserIdsDF = polishPostsDF.union(polishCommentsDF).distinct()
 
-val lowestAverageScoreUsers = rankedUsersDF
-  .filter(s"Rank = ${rankedUsersDF.select(max("Rank")).collect()(0)(0)}")
-  .select("UserId", "AverageCommentScore")
-  .show(truncate = false)
+// Join combinedUserIdsDF with usersDF to filter users and get full details
+val possiblePolishUsersDF = combinedUserIdsDF
+  .join(usersDF, $"UserId" === usersDF("Id"))
+  .select(usersDF.columns.map(usersDF(_)) :_*) // Select all columns from usersDF
 
+// Union with polishUsersDF and remove duplicates
+val allPossiblePolishUsersDF = possiblePolishUsersDF.union(polishUsersDF).distinct()
 
-// COMMAND ----------
+// Count the users
+val numberOfPolishUsers = allPossiblePolishUsersDF.count()
 
-//How many users are there in the database
-
-
-
-// COMMAND ----------
-
-//How many users declared being from Seattle
-
-// COMMAND ----------
-
-postsDF
-
-postsDF
-  .filter(col("Title").isNotNull)
-  .select("Id", "Title", "AnswerCount", "Tags", "ViewCount")
-  .show(10, truncate = false)
+// Show the result and count
+allPossiblePolishUsersDF.show()
+println(s"Total number of potential Polish users: $numberOfPolishUsers")
